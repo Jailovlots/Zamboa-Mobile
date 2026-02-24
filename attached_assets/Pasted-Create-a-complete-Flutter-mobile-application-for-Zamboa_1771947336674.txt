@@ -1,0 +1,97 @@
+Create a complete Flutter mobile application for Zamboanga Del Sur Provincial Government College (ZDSPGC) Student Section App.
+
+PROJECT TITLE:
+ZDSPGC Student Portal Mobile Application
+
+TECH STACK:
+- Flutter (latest stable version)
+- Dart
+- REST API integration
+- Clean architecture
+- Null safety enabled
+- Responsive UI
+- Production-ready folder structure
+
+APP DESCRIPTION:
+The mobile application is for students of ZDSPGC. The app allows students to log in and access their academic information securely.
+
+CORE FEATURES:
+
+1. Authentication System
+- Student login using student ID and password
+- Form validation
+- Error handling
+- Loading indicator
+- Logout functionality
+- Token-based authentication ready
+
+2. Dashboard Screen
+- Display student full name
+- Display student ID
+- Display course and year level
+- Quick navigation cards:
+   - View Grades
+   - View Schedule
+   - Announcements
+   - Profile
+
+3. Grades Module
+- Fetch grades from REST API
+- Display subjects in a Card layout
+- Show subject code, subject name, instructor, grade
+- Pull-to-refresh feature
+- Empty state UI
+
+4. Schedule Module
+- Display weekly class schedule
+- Organized by day (Monday–Friday)
+- Show subject, time, and room
+- Clean table or card UI
+
+5. Announcement Module
+- Fetch announcements from API
+- Display title, date, and description
+- Highlight important announcements
+- Scrollable list view
+
+6. Profile Page
+- Display student information
+- Change password option (UI only)
+- Logout button
+
+BACKEND INTEGRATION:
+- Use placeholder API URLs (example: https://api.zdspgc.edu/students)
+- Use HTTP package
+- JSON parsing
+- Proper error handling
+- MVC or clean structure
+- Separate service files for API calls
+
+UI REQUIREMENTS:
+- Modern and professional design
+- Use Material Design
+- School theme colors (Blue and Gold)
+- Responsive layout
+- Clean typography
+- Card-based layout
+- AppBar with school name
+
+FOLDER STRUCTURE:
+lib/
+ ├── models/
+ ├── services/
+ ├── screens/
+ ├── widgets/
+ ├── utils/
+ └── main.dart
+
+EXTRA REQUIREMENTS:
+- Add comments explaining important parts of the code
+- Use best practices
+- Keep code clean and organized
+- Make the project scalable for 1,000+ concurrent users
+- No hardcoded student data
+- Use proper state management (Provider or simple setState)
+
+OUTPUT:
+Generate complete Flutter project files with working UI structure and API-ready architecture.
