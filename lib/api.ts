@@ -1,0 +1,175 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const getBaseUrl = () => {
+  const domain = process.env.EXPO_PUBLIC_DOMAIN;
+  if (domain) return `https://${domain}`;
+  return "http://localhost:5000";
+};
+
+export const BASE_URL = getBaseUrl();
+
+async function getToken(): Promise<string | null> {
+  return AsyncStorage.getItem("@zdspgc_token");
+}
+
+async function request<T>(
+  path: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const token = await getToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options.headers as Record<string, string>),
+  };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const res = await fetch(`${BASE_URL}${path}`, {
+    ...options,
+    headers,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: "Request failed" }));
+    throw new Error(err.message || `HTTP ${res.status}`);
+  }
+
+  return res.json();
+}
+
+export const api = {
+  get: <T>(path: string) => request<T>(path),
+  post: <T>(path: string, body: unknown) =>
+    request<T>(path, { method: "POST", body: JSON.stringify(body) }),
+  put: <T>(path: string, body: unknown) =>
+    request<T>(path, { method: "PUT", body: JSON.stringify(body) }),
+  delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
+};
+
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
+export interface LoginResponse {
+  token: string;
+  role: "student" | "admin";
+  user: Record<string, unknown>;
+}
+
+export async function loginApi(username: string, password: string): Promise<LoginResponse> {
+  const res = await fetch(`${BASE_URL}/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: "Invalid credentials" }));
+    throw new Error(err.message);
+  }
+  return res.json();
+}
+
+// ─── Admin — Students ─────────────────────────────────────────────────────────
+
+export interface StudentRecord {
+  id: string;
+  studentId: string;
+  firstName: string;
+  lastName: string;
+  middleName: string;
+  course: string;
+  yearLevel: string;
+  email: string;
+  contactNumber: string;
+  address: string;
+  dateOfBirth: string;
+  gender: string;
+  status: string;
+  role: "student";
+}
+
+export const adminStudentsApi = {
+  list: () => api.get<StudentRecord[]>("/api/admin/students"),
+  create: (data: Partial<StudentRecord> & { password?: string }) =>
+    api.post<StudentRecord>("/api/admin/students", data),
+  update: (id: string, data: Partial<StudentRecord>) =>
+    api.put<StudentRecord>(`/api/admin/students/${id}`, data),
+  delete: (id: string) => api.delete<{ message: string }>(`/api/admin/students/${id}`),
+};
+
+// ─── Admin — Grades ───────────────────────────────────────────────────────────
+
+export interface GradeRecord {
+  id: string;
+  studentId: string;
+  subjectCode: string;
+  subjectName: string;
+  instructor: string;
+  grade: string;
+  units: number;
+  semester: string;
+  remarks: string;
+}
+
+export const adminGradesApi = {
+  list: (studentId?: string) =>
+    api.get<GradeRecord[]>(studentId ? `/api/admin/grades?studentId=${studentId}` : "/api/admin/grades"),
+  create: (data: Partial<GradeRecord>) => api.post<GradeRecord>("/api/admin/grades", data),
+  update: (id: string, data: Partial<GradeRecord>) =>
+    api.put<GradeRecord>(`/api/admin/grades/${id}`, data),
+  delete: (id: string) => api.delete<{ message: string }>(`/api/admin/grades/${id}`),
+};
+
+// ─── Admin — Schedule ─────────────────────────────────────────────────────────
+
+export interface ScheduleRecord {
+  id: string;
+  subjectCode: string;
+  subjectName: string;
+  day: string;
+  timeStart: string;
+  timeEnd: string;
+  room: string;
+  instructor: string;
+}
+
+export const adminScheduleApi = {
+  list: () => api.get<ScheduleRecord[]>("/api/admin/schedule"),
+  create: (data: Partial<ScheduleRecord>) => api.post<ScheduleRecord>("/api/admin/schedule", data),
+  update: (id: string, data: Partial<ScheduleRecord>) =>
+    api.put<ScheduleRecord>(`/api/admin/schedule/${id}`, data),
+  delete: (id: string) => api.delete<{ message: string }>(`/api/admin/schedule/${id}`),
+};
+
+// ─── Admin — Announcements ────────────────────────────────────────────────────
+
+export interface AnnouncementRecord {
+  id: string;
+  title: string;
+  description: string;
+  date: string;
+  isImportant: boolean;
+  category: string;
+}
+
+export const adminAnnouncementsApi = {
+  list: () => api.get<AnnouncementRecord[]>("/api/admin/announcements"),
+  create: (data: Partial<AnnouncementRecord>) =>
+    api.post<AnnouncementRecord>("/api/admin/announcements", data),
+  update: (id: string, data: Partial<AnnouncementRecord>) =>
+    api.put<AnnouncementRecord>(`/api/admin/announcements/${id}`, data),
+  delete: (id: string) => api.delete<{ message: string }>(`/api/admin/announcements/${id}`),
+};
+
+// ─── Admin — Stats ────────────────────────────────────────────────────────────
+
+export interface AdminStats {
+  totalStudents: number;
+  totalAnnouncements: number;
+  totalSchedules: number;
+  totalGrades: number;
+  courses: number;
+}
+
+export const adminStatsApi = {
+  get: () => api.get<AdminStats>("/api/admin/stats"),
+};

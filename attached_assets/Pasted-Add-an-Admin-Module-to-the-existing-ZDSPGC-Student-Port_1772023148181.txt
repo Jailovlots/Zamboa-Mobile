@@ -1,0 +1,92 @@
+Add an Admin Module to the existing ZDSPGC Student Portal Flutter Application.
+
+ADMIN ROLE SYSTEM:
+- Implement role-based authentication (student and admin)
+- After login, detect user role
+- If role == "admin", redirect to Admin Dashboard
+- If role == "student", redirect to Student Dashboard
+
+ADMIN FEATURES:
+
+1. Admin Dashboard
+- Display total number of students
+- Display total announcements
+- Display total courses
+- Quick action buttons:
+   - Manage Students
+   - Manage Grades
+   - Manage Schedule
+   - Post Announcement
+
+2. Manage Students Module
+- View list of all students
+- Search student by ID or name
+- Add new student
+- Edit student information
+- Delete student
+- Use proper form validation
+
+3. Manage Grades Module
+- Select student
+- Add grade per subject
+- Edit grade
+- Delete grade
+- Show subject list
+- Save grades via API
+
+4. Manage Schedule Module
+- Add subject schedule
+- Assign instructor
+- Set day, time, and room
+- Edit or delete schedule
+
+5. Announcement Management
+- Create announcement
+- Edit announcement
+- Delete announcement
+- Mark announcement as important
+- Add date and title
+
+BACKEND REQUIREMENTS:
+- Use REST API endpoints:
+   POST /admin/login
+   GET /admin/students
+   POST /admin/students
+   PUT /admin/students/{id}
+   DELETE /admin/students/{id}
+   POST /admin/announcements
+- Use token-based authentication
+- Protect admin routes
+- Proper error handling
+
+UI REQUIREMENTS:
+- Professional admin layout
+- Sidebar navigation (Drawer)
+- Dashboard cards
+- Data table layout for student list
+- Dialog confirmation before deleting
+- Blue and Gold theme (ZDSPGC branding)
+
+FOLDER STRUCTURE ADDITION:
+
+lib/
+ ├── admin/
+ │     ├── screens/
+ │     ├── widgets/
+ │     ├── services/
+ │
+ ├── models/
+ ├── services/
+ ├── screens/
+
+EXTRA:
+- Add loading indicators
+- Add error messages
+- Clean architecture
+- Comment important code parts
+- Make system scalable for 1000+ students
+- No hardcoded data
+- API-ready structure
+
+OUTPUT:
+Generate complete Admin UI screens and API-ready architecture integrated into the existing Flutter project.

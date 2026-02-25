@@ -19,12 +19,10 @@ import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { useAuth } from "@/lib/auth-context";
 import Colors from "@/constants/colors";
 
-const { width } = Dimensions.get("window");
-
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
-  const { login, isAuthenticated, isLoading: authLoading } = useAuth();
-  const [studentId, setStudentId] = useState("");
+  const { login, isAuthenticated, isLoading: authLoading, role } = useAuth();
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -33,9 +31,13 @@ export default function LoginScreen() {
 
   useEffect(() => {
     if (isAuthenticated && !authLoading) {
-      router.replace("/(tabs)");
+      if (role === "admin") {
+        router.replace("/(admin)");
+      } else {
+        router.replace("/(tabs)");
+      }
     }
-  }, [isAuthenticated, authLoading]);
+  }, [isAuthenticated, authLoading, role]);
 
   if (authLoading) {
     return (
@@ -49,24 +51,22 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     setError("");
-    if (!studentId.trim()) {
-      setError("Please enter your Student ID");
-      return;
-    }
-    if (!password.trim()) {
-      setError("Please enter your password");
-      return;
-    }
+    if (!username.trim()) { setError("Please enter your Student ID or username"); return; }
+    if (!password.trim()) { setError("Please enter your password"); return; }
     setIsLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const result = await login(studentId.trim(), password);
+    const result = await login(username.trim(), password);
     setIsLoading(false);
     if (!result.success) {
       setError(result.error || "Login failed");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace("/(tabs)");
+      if (result.role === "admin") {
+        router.replace("/(admin)");
+      } else {
+        router.replace("/(tabs)");
+      }
     }
   };
 
@@ -113,15 +113,15 @@ export default function LoginScreen() {
           )}
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Student ID</Text>
+            <Text style={styles.inputLabel}>Student ID / Username</Text>
             <View style={styles.inputContainer}>
               <Ionicons name="person-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="e.g. 2024-0001"
+                placeholder="e.g. 2024-0001 or admin"
                 placeholderTextColor={Colors.textTertiary}
-                value={studentId}
-                onChangeText={(text) => { setStudentId(text); setError(""); }}
+                value={username}
+                onChangeText={(text) => { setUsername(text); setError(""); }}
                 autoCapitalize="none"
                 autoCorrect={false}
                 returnKeyType="next"
@@ -167,9 +167,11 @@ export default function LoginScreen() {
             )}
           </Pressable>
 
-          <Text style={styles.helpText}>
-            Demo: Use ID "2024-0001" with password "student123"
-          </Text>
+          <View style={styles.hintsContainer}>
+            <Text style={styles.helpLabel}>Demo credentials:</Text>
+            <Text style={styles.helpText}>Student: 2024-0001 / student123</Text>
+            <Text style={styles.helpText}>Admin: admin / admin123</Text>
+          </View>
         </Animated.View>
       </LinearGradient>
     </KeyboardAvoidingView>
@@ -177,137 +179,56 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  container: {
-    flex: 1,
-  },
-  topSection: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 32,
-  },
-  logoContainer: {
-    marginBottom: 16,
-  },
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+  container: { flex: 1 },
+  topSection: { flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 32 },
+  logoContainer: { marginBottom: 16 },
   logoCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "rgba(212, 168, 67, 0.4)",
+    width: 96, height: 96, borderRadius: 48,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    justifyContent: "center", alignItems: "center",
+    borderWidth: 2, borderColor: "rgba(212,168,67,0.4)",
   },
-  schoolName: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 36,
-    color: Colors.gold,
-    letterSpacing: 4,
-  },
+  schoolName: { fontFamily: "Inter_700Bold", fontSize: 36, color: Colors.gold, letterSpacing: 4 },
   schoolSubtitle: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 14,
-    color: "rgba(255, 255, 255, 0.8)",
-    textAlign: "center",
-    marginTop: 4,
-    lineHeight: 20,
+    fontFamily: "Inter_400Regular", fontSize: 14,
+    color: "rgba(255,255,255,0.8)", textAlign: "center", marginTop: 4, lineHeight: 20,
   },
   portalLabel: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 16,
-    color: "rgba(255, 255, 255, 0.6)",
-    marginTop: 12,
-    letterSpacing: 2,
-    textTransform: "uppercase",
+    fontFamily: "Inter_600SemiBold", fontSize: 16,
+    color: "rgba(255,255,255,0.6)", marginTop: 12, letterSpacing: 2, textTransform: "uppercase",
   },
   formCard: {
-    backgroundColor: Colors.white,
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    gap: 16,
+    backgroundColor: Colors.white, borderTopLeftRadius: 32, borderTopRightRadius: 32,
+    paddingHorizontal: 24, paddingTop: 32, gap: 16,
   },
   errorContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: "#FEF2F2",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#FECACA",
+    flexDirection: "row", alignItems: "center", gap: 8,
+    backgroundColor: "#FEF2F2", paddingHorizontal: 16, paddingVertical: 12,
+    borderRadius: 12, borderWidth: 1, borderColor: "#FECACA",
   },
-  errorText: {
-    fontFamily: "Inter_500Medium",
-    fontSize: 13,
-    color: Colors.error,
-    flex: 1,
-  },
-  inputGroup: {
-    gap: 6,
-  },
-  inputLabel: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 13,
-    color: Colors.text,
-    marginLeft: 4,
-  },
+  errorText: { fontFamily: "Inter_500Medium", fontSize: 13, color: Colors.error, flex: 1 },
+  inputGroup: { gap: 6 },
+  inputLabel: { fontFamily: "Inter_600SemiBold", fontSize: 13, color: Colors.text, marginLeft: 4 },
   inputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.surfaceSecondary,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: Colors.surfaceSecondary, borderRadius: 14,
+    borderWidth: 1.5, borderColor: Colors.border,
   },
-  inputIcon: {
-    marginLeft: 14,
-  },
+  inputIcon: { marginLeft: 14 },
   input: {
-    flex: 1,
-    fontFamily: "Inter_400Regular",
-    fontSize: 15,
-    color: Colors.text,
-    paddingVertical: 14,
-    paddingHorizontal: 10,
+    flex: 1, fontFamily: "Inter_400Regular", fontSize: 15,
+    color: Colors.text, paddingVertical: 14, paddingHorizontal: 10,
   },
-  eyeButton: {
-    padding: 14,
-  },
+  eyeButton: { padding: 14 },
   loginButton: {
-    backgroundColor: Colors.primary,
-    borderRadius: 14,
-    paddingVertical: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 4,
+    backgroundColor: Colors.primary, borderRadius: 14,
+    paddingVertical: 16, alignItems: "center", justifyContent: "center", marginTop: 4,
   },
-  loginButtonPressed: {
-    opacity: 0.9,
-    transform: [{ scale: 0.98 }],
-  },
-  loginButtonDisabled: {
-    opacity: 0.7,
-  },
-  loginButtonText: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 16,
-    color: Colors.white,
-    letterSpacing: 0.5,
-  },
-  helpText: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 12,
-    color: Colors.textTertiary,
-    textAlign: "center",
-    marginTop: 4,
-  },
+  loginButtonPressed: { opacity: 0.9, transform: [{ scale: 0.98 }] },
+  loginButtonDisabled: { opacity: 0.7 },
+  loginButtonText: { fontFamily: "Inter_700Bold", fontSize: 16, color: Colors.white, letterSpacing: 0.5 },
+  hintsContainer: { alignItems: "center", gap: 2, marginTop: 4, paddingBottom: 4 },
+  helpLabel: { fontFamily: "Inter_600SemiBold", fontSize: 12, color: Colors.textSecondary },
+  helpText: { fontFamily: "Inter_400Regular", fontSize: 12, color: Colors.textTertiary },
 });

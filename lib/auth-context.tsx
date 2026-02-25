@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, useMemo, useCallback, ReactNode, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createContext, useContext, useState, useMemo, useCallback, ReactNode, useEffect } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { loginApi } from "@/lib/api";
 
 export interface Student {
   id: string;
@@ -15,69 +16,46 @@ export interface Student {
   dateOfBirth: string;
   gender: string;
   status: string;
+  role: "student";
 }
 
+export interface AdminUser {
+  id: string;
+  username: string;
+  firstName: string;
+  lastName: string;
+  role: "admin";
+}
+
+type AuthUser = Student | AdminUser;
+
 interface AuthContextValue {
+  user: AuthUser | null;
   student: Student | null;
+  admin: AdminUser | null;
+  role: "student" | "admin" | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (studentId: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  login: (username: string, password: string) => Promise<{ success: boolean; error?: string; role?: "student" | "admin" }>;
   logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const MOCK_STUDENTS: Record<string, { password: string; student: Student }> = {
-  "2024-0001": {
-    password: "student123",
-    student: {
-      id: "1",
-      studentId: "2024-0001",
-      firstName: "Maria",
-      lastName: "Santos",
-      middleName: "Cruz",
-      course: "BS Information Technology",
-      yearLevel: "3rd Year",
-      email: "maria.santos@zdspgc.edu",
-      contactNumber: "09171234567",
-      address: "Pagadian City, Zamboanga del Sur",
-      dateOfBirth: "2002-05-15",
-      gender: "Female",
-      status: "Regular",
-    },
-  },
-  "2024-0002": {
-    password: "student123",
-    student: {
-      id: "2",
-      studentId: "2024-0002",
-      firstName: "Juan",
-      lastName: "Dela Cruz",
-      middleName: "Reyes",
-      course: "BS Computer Science",
-      yearLevel: "2nd Year",
-      email: "juan.delacruz@zdspgc.edu",
-      contactNumber: "09179876543",
-      address: "Aurora, Zamboanga del Sur",
-      dateOfBirth: "2003-08-22",
-      gender: "Male",
-      status: "Regular",
-    },
-  },
-};
-
-const AUTH_STORAGE_KEY = "@zdspgc_auth";
+const USER_KEY = "@zdspgc_user";
+const TOKEN_KEY = "@zdspgc_token";
+const ROLE_KEY = "@zdspgc_role";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [student, setStudent] = useState<Student | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       try {
-        const stored = await AsyncStorage.getItem(AUTH_STORAGE_KEY);
-        if (stored) {
-          setStudent(JSON.parse(stored));
+        const storedUser = await AsyncStorage.getItem(USER_KEY);
+        if (storedUser) {
+          setUser(JSON.parse(storedUser));
         }
       } catch {
       } finally {
@@ -86,31 +64,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
   }, []);
 
-  const login = useCallback(async (studentId: string, password: string) => {
-    const record = MOCK_STUDENTS[studentId];
-    if (!record) {
-      return { success: false, error: "Student ID not found" };
+  const login = useCallback(async (username: string, password: string) => {
+    try {
+      const res = await loginApi(username, password);
+      await AsyncStorage.setItem(TOKEN_KEY, res.token);
+      await AsyncStorage.setItem(ROLE_KEY, res.role);
+      await AsyncStorage.setItem(USER_KEY, JSON.stringify(res.user));
+      setUser(res.user as AuthUser);
+      return { success: true, role: res.role };
+    } catch (err: any) {
+      return { success: false, error: err?.message || "Login failed" };
     }
-    if (record.password !== password) {
-      return { success: false, error: "Incorrect password" };
-    }
-    await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(record.student));
-    setStudent(record.student);
-    return { success: true };
   }, []);
 
   const logout = useCallback(async () => {
-    await AsyncStorage.removeItem(AUTH_STORAGE_KEY);
-    setStudent(null);
+    await AsyncStorage.multiRemove([USER_KEY, TOKEN_KEY, ROLE_KEY]);
+    setUser(null);
   }, []);
 
+  const role = user?.role ?? null;
+
   const value = useMemo(() => ({
-    student,
+    user,
+    student: role === "student" ? (user as Student) : null,
+    admin: role === "admin" ? (user as AdminUser) : null,
+    role,
     isLoading,
-    isAuthenticated: !!student,
+    isAuthenticated: !!user,
     login,
     logout,
-  }), [student, isLoading, login, logout]);
+  }), [user, role, isLoading, login, logout]);
 
   return (
     <AuthContext.Provider value={value}>
@@ -121,8 +104,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error("useAuth must be used within AuthProvider");
   return context;
 }
