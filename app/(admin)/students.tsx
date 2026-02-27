@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   StyleSheet, Text, View, FlatList, Pressable, Platform,
   TextInput, Modal, Alert, ActivityIndicator, ScrollView,
@@ -8,27 +8,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import { adminStudentsApi, type StudentRecord } from "@/lib/api";
+import { adminStudentsApi, adminSectionsApi, type StudentRecord } from "@/lib/api";
 import Colors from "@/constants/colors";
-
-const COURSES = [
-  "BS Information Technology",
-  "BS Computer Science",
-  "BS Education",
-  "BS Business Administration",
-  "BS Nursing",
-  "BS Criminology",
-];
-
-const YEAR_LEVELS = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
-const GENDERS = ["Male", "Female"];
-const STATUSES = ["Regular", "Irregular", "Transferee", "Cross-Enrollee"];
+import { COURSES, YEAR_LEVELS, GENDERS, STATUSES, SUFFIXES } from "@/constants/data";
 
 interface StudentFormData {
   studentId: string;
   firstName: string;
   lastName: string;
   middleName: string;
+  suffix: string;
   course: string;
   yearLevel: string;
   email: string;
@@ -38,12 +27,14 @@ interface StudentFormData {
   gender: string;
   status: string;
   password: string;
+  sectionId: string;
 }
 
 const emptyForm: StudentFormData = {
-  studentId: "", firstName: "", lastName: "", middleName: "",
+  studentId: "", firstName: "", lastName: "", middleName: "", suffix: "",
   course: COURSES[0], yearLevel: YEAR_LEVELS[0], email: "", contactNumber: "",
   address: "", dateOfBirth: "", gender: GENDERS[0], status: STATUSES[0], password: "student123",
+  sectionId: "",
 };
 
 function StudentModal({
@@ -56,12 +47,25 @@ function StudentModal({
   const qc = useQueryClient();
   const [form, setForm] = useState<StudentFormData>(
     editStudent
-      ? { ...emptyForm, ...editStudent, password: "student123" }
+      ? { ...emptyForm, ...editStudent, sectionId: editStudent.sectionId || "", password: "" }
       : emptyForm
   );
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    if (visible) {
+      setForm(editStudent ? { ...emptyForm, ...editStudent, sectionId: editStudent.sectionId || "", password: "" } : emptyForm);
+      setError("");
+    }
+  }, [visible, editStudent]);
+
   const isEdit = !!editStudent;
+
+  // Load sections for the picker
+  const { data: sections = [] } = useQuery({
+    queryKey: ["admin-sections"],
+    queryFn: adminSectionsApi.list,
+  });
 
   const createMut = useMutation({
     mutationFn: adminStudentsApi.create,
@@ -69,7 +73,7 @@ function StudentModal({
     onError: (e: any) => setError(e.message),
   });
   const updateMut = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<StudentRecord> }) => adminStudentsApi.update(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Partial<StudentRecord> & { password?: string } }) => adminStudentsApi.update(id, data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-students"] }); onClose(); },
     onError: (e: any) => setError(e.message),
   });
@@ -85,10 +89,16 @@ function StudentModal({
       return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const payload: Partial<StudentRecord> & { password?: string; sectionId?: string | null } = {
+      ...form,
+      sectionId: form.sectionId || null
+    };
     if (isEdit && editStudent) {
-      updateMut.mutate({ id: editStudent.id, data: form });
+      // Only send password if filled in (reset)
+      if (!form.password) delete (payload as any).password;
+      updateMut.mutate({ id: editStudent.id, data: payload });
     } else {
-      createMut.mutate(form);
+      createMut.mutate({ ...payload, password: form.password || "student123" });
     }
   };
 
@@ -115,15 +125,43 @@ function StudentModal({
             <FormField label="First Name *" {...field("firstName")} />
             <FormField label="Last Name *" {...field("lastName")} />
             <FormField label="Middle Name" {...field("middleName")} />
+            <PickerField label="Suffix" options={SUFFIXES} value={form.suffix} onChange={(v) => setForm((f) => ({ ...f, suffix: v }))} />
             <PickerField label="Course" options={COURSES} value={form.course} onChange={(v) => setForm((f) => ({ ...f, course: v }))} />
             <PickerField label="Year Level" options={YEAR_LEVELS} value={form.yearLevel} onChange={(v) => setForm((f) => ({ ...f, yearLevel: v }))} />
+            <PickerField label="Gender" options={GENDERS} value={form.gender} onChange={(v) => setForm((f) => ({ ...f, gender: v }))} />
+            <PickerField label="Status" options={STATUSES} value={form.status} onChange={(v) => setForm((f) => ({ ...f, status: v }))} />
+            {/* Section picker */}
+            <View style={styles.formField}>
+              <Text style={styles.formLabel}>Section</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pickerRow}>
+                <Pressable
+                  style={[styles.pickerChip, !form.sectionId && styles.pickerChipActive]}
+                  onPress={() => setForm((f) => ({ ...f, sectionId: "" }))}
+                >
+                  <Text style={[styles.pickerChipText, !form.sectionId && styles.pickerChipTextActive]}>None</Text>
+                </Pressable>
+                {sections.map((sec) => (
+                  <Pressable
+                    key={sec.id}
+                    style={[styles.pickerChip, form.sectionId === sec.id && styles.pickerChipActive]}
+                    onPress={() => setForm((f) => ({ ...f, sectionId: sec.id }))}
+                  >
+                    <Text style={[styles.pickerChipText, form.sectionId === sec.id && styles.pickerChipTextActive]}>
+                      {sec.name}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
             <FormField label="Email" {...field("email")} keyboardType="email-address" />
             <FormField label="Contact Number" {...field("contactNumber")} keyboardType="phone-pad" />
             <FormField label="Address" {...field("address")} multiline />
             <FormField label="Date of Birth (YYYY-MM-DD)" {...field("dateOfBirth")} />
-            <PickerField label="Gender" options={GENDERS} value={form.gender} onChange={(v) => setForm((f) => ({ ...f, gender: v }))} />
-            <PickerField label="Status" options={STATUSES} value={form.status} onChange={(v) => setForm((f) => ({ ...f, status: v }))} />
-            {!isEdit && <FormField label="Password" {...field("password")} secureTextEntry />}
+            <FormField
+              label={isEdit ? "Reset Password (leave blank to keep current)" : "Password"}
+              {...field("password")}
+              secureTextEntry
+            />
             <Pressable
               style={[styles.saveButton, isBusy && { opacity: 0.7 }]}
               onPress={handleSave}
@@ -393,7 +431,7 @@ const styles = StyleSheet.create({
   studentName: { fontFamily: "Inter_600SemiBold", fontSize: 15, color: Colors.text },
   studentId: { fontFamily: "Inter_400Regular", fontSize: 12, color: Colors.primary, marginTop: 1 },
   studentCourse: { fontFamily: "Inter_400Regular", fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
-  studentMeta: { flexDirection: "row", gap: 6, marginTop: 6 },
+  studentMeta: { flexDirection: "row", gap: 6, marginTop: 6, flexWrap: "wrap" },
   yearBadge: {
     backgroundColor: Colors.surfaceSecondary, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
   },

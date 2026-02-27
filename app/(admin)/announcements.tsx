@@ -40,12 +40,21 @@ function AnnModal({ visible, onClose, editAnn }: {
 
   const createMut = useMutation({
     mutationFn: adminAnnouncementsApi.create,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-announcements"] }); qc.invalidateQueries({ queryKey: ["admin-stats"] }); onClose(); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-announcements"] });
+      qc.invalidateQueries({ queryKey: ["admin-stats"] });
+      qc.invalidateQueries({ queryKey: ["student-announcements"] });
+      onClose();
+    },
     onError: (e: any) => setError(e.message),
   });
   const updateMut = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<AnnouncementRecord> }) => adminAnnouncementsApi.update(id, data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-announcements"] }); onClose(); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-announcements"] });
+      qc.invalidateQueries({ queryKey: ["student-announcements"] });
+      onClose();
+    },
     onError: (e: any) => setError(e.message),
   });
 
@@ -205,7 +214,11 @@ export default function AnnouncementsAdminScreen() {
 
   const deleteMut = useMutation({
     mutationFn: adminAnnouncementsApi.delete,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-announcements"] }); qc.invalidateQueries({ queryKey: ["admin-stats"] }); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-announcements"] });
+      qc.invalidateQueries({ queryKey: ["admin-stats"] });
+      qc.invalidateQueries({ queryKey: ["student-announcements"] });
+    },
   });
 
   const handleDelete = (ann: AnnouncementRecord) => {

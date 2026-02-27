@@ -8,6 +8,7 @@ export interface Student {
   firstName: string;
   lastName: string;
   middleName: string;
+  suffix: string;
   course: string;
   yearLevel: string;
   email: string;
@@ -38,6 +39,8 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   login: (username: string, password: string) => Promise<{ success: boolean; error?: string; role?: "student" | "admin" }>;
   logout: () => Promise<void>;
+  setStudent: (s: Student) => void;
+  setAdmin: (a: AdminUser) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -89,6 +92,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const role = user?.role ?? null;
 
+  const setStudent = useCallback((s: Student) => {
+    setUser(s);
+    AsyncStorage.setItem(USER_KEY, JSON.stringify(s)).catch(() => { });
+  }, []);
+
+  const setAdmin = useCallback((a: AdminUser) => {
+    setUser(a);
+    AsyncStorage.setItem(USER_KEY, JSON.stringify(a)).catch(() => { });
+  }, []);
+
   const value = useMemo(() => ({
     user,
     student: role === "student" ? (user as Student) : null,
@@ -98,7 +111,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAuthenticated: !!user,
     login,
     logout,
-  }), [user, role, isLoading, login, logout]);
+    setStudent,
+    setAdmin,
+  }), [user, role, isLoading, login, logout, setStudent, setAdmin]);
 
   return (
     <AuthContext.Provider value={value}>

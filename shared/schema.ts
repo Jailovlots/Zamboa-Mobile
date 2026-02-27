@@ -41,6 +41,7 @@ export const students = pgTable("students", {
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
   middleName: text("middle_name").notNull().default(""),
+  suffix: text("suffix").notNull().default(""),
   course: text("course").notNull(),
   yearLevel: text("year_level").notNull().default("1st Year"),
   email: text("email").notNull().default(""),
@@ -49,12 +50,29 @@ export const students = pgTable("students", {
   dateOfBirth: text("date_of_birth").notNull().default(""),
   gender: text("gender").notNull().default(""),
   status: text("status").notNull().default("Regular"),
+  sectionId: text("section_id"),
   password: text("password").notNull(),
   role: text("role").notNull().default("student"),
 });
 
 export type Student = typeof students.$inferSelect;
 export type InsertStudent = typeof students.$inferInsert;
+
+// ─── Sections ──────────────────────────────────────────────────────────────────
+
+export const sections = pgTable("sections", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  name: text("name").notNull().unique(),
+  course: text("course").notNull().default(""),
+  yearLevel: text("year_level").notNull().default(""),
+  schoolYear: text("school_year").notNull().default(""),
+  description: text("description").notNull().default(""),
+});
+
+export type Section = typeof sections.$inferSelect;
+export type InsertSection = typeof sections.$inferInsert;
 
 // ─── Grades ───────────────────────────────────────────────────────────────────
 

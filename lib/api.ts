@@ -85,6 +85,7 @@ export interface StudentRecord {
   firstName: string;
   lastName: string;
   middleName: string;
+  suffix: string;
   course: string;
   yearLevel: string;
   email: string;
@@ -93,6 +94,7 @@ export interface StudentRecord {
   dateOfBirth: string;
   gender: string;
   status: string;
+  sectionId: string | null;
   role: "student";
 }
 
@@ -100,9 +102,32 @@ export const adminStudentsApi = {
   list: () => api.get<StudentRecord[]>("/api/admin/students"),
   create: (data: Partial<StudentRecord> & { password?: string }) =>
     api.post<StudentRecord>("/api/admin/students", data),
-  update: (id: string, data: Partial<StudentRecord>) =>
+  update: (id: string, data: Partial<StudentRecord> & { password?: string }) =>
     api.put<StudentRecord>(`/api/admin/students/${id}`, data),
   delete: (id: string) => api.delete<{ message: string }>(`/api/admin/students/${id}`),
+};
+
+// ─── Admin — Sections ────────────────────────────────────────────────────────────────
+
+export interface SectionRecord {
+  id: string;
+  name: string;
+  course: string;
+  yearLevel: string;
+  schoolYear: string;
+  description: string;
+}
+
+export const adminSectionsApi = {
+  list: () => api.get<SectionRecord[]>("/api/admin/sections"),
+  create: (data: Partial<SectionRecord>) => api.post<SectionRecord>("/api/admin/sections", data),
+  update: (id: string, data: Partial<SectionRecord>) => api.put<SectionRecord>(`/api/admin/sections/${id}`, data),
+  delete: (id: string) => api.delete<{ message: string }>(`/api/admin/sections/${id}`),
+  assign: (id: string, studentIds: string[]) =>
+    api.post<{ message: string }>(`/api/admin/sections/${id}/assign`, { studentIds }),
+  removeStudent: (sectionId: string, studentId: string) =>
+    api.delete<{ message: string }>(`/api/admin/sections/${sectionId}/students/${studentId}`),
+  listStudents: (id: string) => api.get<StudentRecord[]>(`/api/admin/sections/${id}/students`),
 };
 
 // ─── Admin — Grades ───────────────────────────────────────────────────────────
@@ -169,6 +194,12 @@ export const adminAnnouncementsApi = {
   delete: (id: string) => api.delete<{ message: string }>(`/api/admin/announcements/${id}`),
 };
 
+// ─── Student — Announcements ──────────────────────────────────────────────────
+
+export const studentAnnouncementsApi = {
+  list: () => api.get<AnnouncementRecord[]>("/api/student/announcements"),
+};
+
 // ─── Admin — Stats ────────────────────────────────────────────────────────────
 
 export interface AdminStats {
@@ -181,6 +212,13 @@ export interface AdminStats {
 
 export const adminStatsApi = {
   get: () => api.get<AdminStats>("/api/admin/stats"),
+};
+
+// ─── Admin — Account ──────────────────────────────────────────────────────────
+
+export const adminAccountApi = {
+  update: (data: { currentPassword: string; newUsername?: string; newPassword?: string }) =>
+    api.put<{ message: string; user: Record<string, unknown> }>("/api/admin/account", data),
 };
 
 // ─── Student — Grades ─────────────────────────────────────────────────────────
@@ -213,4 +251,11 @@ export const studentStatsApi = {
 
 export const studentProfileApi = {
   get: () => api.get<StudentRecord>("/api/student/profile"),
+};
+
+// ─── Student — Account ──────────────────────────────────────────────────────────────
+
+export const studentAccountApi = {
+  update: (data: { currentPassword: string; newStudentId?: string; newPassword?: string }) =>
+    api.put<{ message: string; user: StudentRecord }>("/api/student/account", data),
 };

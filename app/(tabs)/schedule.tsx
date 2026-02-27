@@ -78,10 +78,10 @@ export default function ScheduleScreen() {
     queryFn: studentScheduleApi.list,
   });
 
-  const schedule = allItems.filter((item) => item.day === selectedDay);
+  const schedule = allItems.filter((item) => item.day && item.day.split(',').some(d => d.trim() === selectedDay));
 
   const getCountForDay = useCallback(
-    (day: string) => allItems.filter((item) => item.day === day).length,
+    (day: string) => allItems.filter((item) => item.day && item.day.split(',').some(d => d.trim() === day)).length,
     [allItems]
   );
 

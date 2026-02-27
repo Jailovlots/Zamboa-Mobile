@@ -16,7 +16,7 @@ import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth-context";
-import { studentStatsApi } from "@/lib/api";
+import { studentStatsApi, studentAnnouncementsApi } from "@/lib/api";
 import Colors from "@/constants/colors";
 
 interface QuickAction {
@@ -93,6 +93,12 @@ export default function DashboardScreen() {
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["student-stats"],
     queryFn: studentStatsApi.get,
+    enabled: isAuthenticated,
+  });
+
+  const { data: announcements, isLoading: announcementsLoading } = useQuery({
+    queryKey: ["student-announcements"],
+    queryFn: studentAnnouncementsApi.list,
     enabled: isAuthenticated,
   });
 
@@ -213,6 +219,47 @@ export default function DashboardScreen() {
             </View>
           </View>
         </Animated.View>
+
+        <View style={styles.sectionContainer}>
+          <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Recent Announcements</Text>
+          {announcementsLoading ? (
+            <ActivityIndicator size="small" color={Colors.primary} style={{ marginTop: 20 }} />
+          ) : !announcements || announcements.length === 0 ? (
+            <View style={styles.emptyAnnouncements}>
+              <Ionicons name="megaphone-outline" size={32} color={Colors.textTertiary} />
+              <Text style={styles.emptyAnnouncementsText}>No announcements yet.</Text>
+            </View>
+          ) : (
+            <View style={styles.announcementsList}>
+              {announcements.map((item, i) => (
+                <Animated.View key={item.id} entering={FadeInDown.delay(700 + i * 100).duration(400)}>
+                  <View style={[styles.announcementCard, item.isImportant && styles.announcementCardImportant]}>
+                    <View style={styles.announcementHeader}>
+                      <View style={styles.announcementMeta}>
+                        <View style={[styles.categoryBadge, item.isImportant && styles.categoryBadgeImportant]}>
+                          <Text style={[styles.categoryText, item.isImportant && styles.categoryTextImportant]}>
+                            {item.category}
+                          </Text>
+                        </View>
+                        {item.isImportant && (
+                          <Ionicons name="alert-circle" size={16} color={Colors.error} />
+                        )}
+                      </View>
+                      <Text style={styles.announcementDate}>
+                        {new Date(item.date).toLocaleDateString()}
+                      </Text>
+                    </View>
+                    <Text style={[styles.announcementTitle, item.isImportant && { color: Colors.error }]}>
+                      {item.title}
+                    </Text>
+                    <Text style={styles.announcementDesc}>{item.description}</Text>
+                  </View>
+                </Animated.View>
+              ))}
+            </View>
+          )}
+        </View>
+
       </ScrollView>
     </View>
   );
@@ -432,5 +479,77 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textSecondary,
     marginTop: 2,
+  },
+  emptyAnnouncements: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 32,
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderStyle: "dashed",
+  },
+  emptyAnnouncementsText: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 14,
+    color: Colors.textSecondary,
+    marginTop: 8,
+  },
+  announcementsList: { gap: 12 },
+  announcementCard: {
+    backgroundColor: Colors.white,
+    padding: 16,
+    borderRadius: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.primary,
+    shadowColor: Colors.cardShadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  announcementCardImportant: {
+    borderLeftColor: Colors.error,
+    backgroundColor: "#FEF2F2",
+  },
+  announcementHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  announcementMeta: { flexDirection: "row", alignItems: "center", gap: 8 },
+  categoryBadge: {
+    backgroundColor: Colors.surfaceSecondary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  categoryBadgeImportant: { backgroundColor: "#FEE2E2" },
+  categoryText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 10,
+    color: Colors.textTertiary,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  categoryTextImportant: { color: Colors.error },
+  announcementDate: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 11,
+    color: Colors.textTertiary,
+  },
+  announcementTitle: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 16,
+    color: Colors.text,
+    marginBottom: 6,
+  },
+  announcementDesc: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 14,
+    color: Colors.textSecondary,
+    lineHeight: 20,
   },
 });

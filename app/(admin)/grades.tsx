@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   StyleSheet, Text, View, FlatList, Pressable, Platform,
   TextInput, Modal, Alert, ActivityIndicator, ScrollView,
@@ -41,6 +41,14 @@ function GradeModal({
       : emptyGradeForm(studentId)
   );
   const [error, setError] = useState("");
+
+  // Sync state when modal opens or edit item changes
+  useEffect(() => {
+    if (visible) {
+      setForm(editGrade ? { ...editGrade, units: String(editGrade.units) } : emptyGradeForm(studentId));
+      setError("");
+    }
+  }, [visible, editGrade, studentId]);
 
   const createMut = useMutation({
     mutationFn: adminGradesApi.create,
@@ -218,7 +226,13 @@ export default function GradesScreen() {
               {selectedStudent ? `${selectedStudent.firstName} ${selectedStudent.lastName}` : "All students"}
             </Text>
           </View>
-          <Pressable style={styles.addButton} onPress={() => { setEditGrade(null); setGradeModal(true); }}>
+          <Pressable style={styles.addButton} onPress={() => {
+            if (!selectedStudentId) {
+              Alert.alert("Action Required", "Please select a specific student from the filter below before adding a grade.");
+              return;
+            }
+            setEditGrade(null); setGradeModal(true);
+          }}>
             <Ionicons name="add" size={22} color={Colors.white} />
           </Pressable>
         </View>

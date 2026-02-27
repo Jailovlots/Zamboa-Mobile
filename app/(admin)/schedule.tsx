@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   StyleSheet, Text, View, FlatList, Pressable, Platform,
   TextInput, Modal, Alert, ActivityIndicator, ScrollView,
@@ -10,8 +10,7 @@ import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { adminScheduleApi, type ScheduleRecord } from "@/lib/api";
 import Colors from "@/constants/colors";
-
-const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+import { DAYS } from "@/constants/data";
 
 const DAY_COLORS: Record<string, string> = {
   Monday: Colors.primary, Tuesday: "#7C3AED", Wednesday: "#059669",
@@ -19,12 +18,12 @@ const DAY_COLORS: Record<string, string> = {
 };
 
 interface ScheduleFormData {
-  subjectCode: string; subjectName: string; day: string;
+  subjectCode: string; subjectName: string; days: string[];
   timeStart: string; timeEnd: string; room: string; instructor: string;
 }
 
 const emptyForm: ScheduleFormData = {
-  subjectCode: "", subjectName: "", day: DAYS[0],
+  subjectCode: "", subjectName: "", days: [],
   timeStart: "", timeEnd: "", room: "", instructor: "",
 };
 
@@ -33,8 +32,17 @@ function ScheduleModal({ visible, onClose, editItem }: {
 }) {
   const qc = useQueryClient();
   const isEdit = !!editItem;
-  const [form, setForm] = useState<ScheduleFormData>(editItem ? { ...editItem } : emptyForm);
+  const [form, setForm] = useState<ScheduleFormData>(
+    editItem ? { ...editItem, days: editItem.day.split(',').map(d => d.trim()).filter(Boolean) } : emptyForm
+  );
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (visible) {
+      setForm(editItem ? { ...editItem, days: editItem.day.split(',').map(d => d.trim()).filter(Boolean) } : emptyForm);
+      setError("");
+    }
+  }, [visible, editItem]);
 
   const createMut = useMutation({
     mutationFn: adminScheduleApi.create,
@@ -47,18 +55,25 @@ function ScheduleModal({ visible, onClose, editItem }: {
     onError: (e: any) => setError(e.message),
   });
 
-  const field = (key: keyof ScheduleFormData) => ({
+  const field = (key: keyof Omit<ScheduleFormData, "days">) => ({
     value: form[key],
     onChangeText: (v: string) => { setForm((f) => ({ ...f, [key]: v })); setError(""); },
   });
 
   const handleSave = () => {
-    if (!form.subjectCode.trim() || !form.day || !form.timeStart.trim() || !form.timeEnd.trim()) {
-      setError("Subject Code, Day, Start Time, and End Time are required."); return;
+    if (!form.subjectCode.trim() || form.days.length === 0 || !form.timeStart.trim() || !form.timeEnd.trim()) {
+      setError("Subject Code, at least one Day, Start Time, and End Time are required."); return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (isEdit && editItem) { updateMut.mutate({ id: editItem.id, data: form }); }
-    else { createMut.mutate(form); }
+
+    const payload = {
+      ...form,
+      day: form.days.join(', ')
+    };
+    delete (payload as any).days;
+
+    if (isEdit && editItem) { updateMut.mutate({ id: editItem.id, data: payload as Partial<ScheduleRecord> }); }
+    else { createMut.mutate(payload as any); }
   };
 
   const isBusy = createMut.isPending || updateMut.isPending;
@@ -85,15 +100,18 @@ function ScheduleModal({ visible, onClose, editItem }: {
             <SFormField label="Start Time *" {...field("timeStart")} placeholder="e.g. 7:30 AM" />
             <SFormField label="End Time *" {...field("timeEnd")} placeholder="e.g. 9:00 AM" />
             <View style={styles.formField}>
-              <Text style={styles.formLabel}>Day *</Text>
+              <Text style={styles.formLabel}>Days *</Text>
               <View style={styles.dayGrid}>
                 {DAYS.map((day) => (
                   <Pressable
                     key={day}
-                    style={[styles.dayChip, form.day === day && { backgroundColor: DAY_COLORS[day], borderColor: DAY_COLORS[day] }]}
-                    onPress={() => setForm((f) => ({ ...f, day }))}
+                    style={[styles.dayChip, form.days.includes(day) && { backgroundColor: DAY_COLORS[day], borderColor: DAY_COLORS[day] }]}
+                    onPress={() => setForm((f) => ({
+                      ...f,
+                      days: f.days.includes(day) ? f.days.filter(d => d !== day) : [...f.days, day]
+                    }))}
                   >
-                    <Text style={[styles.dayChipText, form.day === day && { color: Colors.white }]}>{day}</Text>
+                    <Text style={[styles.dayChipText, form.days.includes(day) && { color: Colors.white }]}>{day}</Text>
                   </Pressable>
                 ))}
               </View>
@@ -126,15 +144,24 @@ function SFormField({ label, value, onChangeText, placeholder }: {
 function ScheduleCard({ item, index, onEdit, onDelete }: {
   item: ScheduleRecord; index: number; onEdit: (s: ScheduleRecord) => void; onDelete: (s: ScheduleRecord) => void;
 }) {
-  const color = DAY_COLORS[item.day] || Colors.primary;
+  const days = item.day ? item.day.split(',').map(d => d.trim()).filter(Boolean) : [];
   return (
     <Animated.View entering={FadeInDown.delay(index * 50).duration(350)}>
       <View style={styles.card}>
-        <View style={[styles.dayStripe, { backgroundColor: color }]}>
-          <Text style={styles.dayStripeText}>{item.day.slice(0, 3)}</Text>
+        <View style={styles.dayStripeContainer}>
+          {days.length === 0 ? (
+            <View style={[styles.dayStripe, { backgroundColor: Colors.primary }]} />
+          ) : days.map((dayLine, i) => {
+            const color = DAY_COLORS[dayLine] || Colors.primary;
+            return (
+              <View key={dayLine} style={[styles.dayStripe, { backgroundColor: color, borderTopWidth: i > 0 ? 1 : 0, borderColor: "rgba(255,255,255,0.2)" }]}>
+                <Text style={styles.dayStripeText}>{dayLine.slice(0, 3)}</Text>
+              </View>
+            )
+          })}
         </View>
         <View style={styles.cardContent}>
-          <Text style={[styles.cardCode, { color }]}>{item.subjectCode}</Text>
+          <Text style={[styles.cardCode, { color: days.length ? DAY_COLORS[days[0]] || Colors.primary : Colors.primary }]}>{item.subjectCode}</Text>
           <Text style={styles.cardName}>{item.subjectName}</Text>
           <View style={styles.cardMeta}>
             <View style={styles.metaItem}>
@@ -184,7 +211,7 @@ export default function ScheduleAdminScreen() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-schedule"] }); qc.invalidateQueries({ queryKey: ["admin-stats"] }); },
   });
 
-  const displayed = filterDay ? schedule.filter((s) => s.day === filterDay) : schedule;
+  const displayed = filterDay ? schedule.filter((s) => s.day && s.day.split(',').some(d => d.trim() === filterDay)) : schedule;
 
   const handleDelete = (item: ScheduleRecord) => {
     const doDelete = () => { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); deleteMut.mutate(item.id); };
@@ -285,7 +312,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white, borderRadius: 14, flexDirection: "row",
     overflow: "hidden", shadowColor: Colors.cardShadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2,
   },
-  dayStripe: { width: 48, alignItems: "center", justifyContent: "center", paddingVertical: 16 },
+  dayStripeContainer: { width: 48, flexDirection: "column" },
+  dayStripe: { flex: 1, alignItems: "center", justifyContent: "center", minHeight: 48, paddingVertical: 12 },
   dayStripeText: { fontFamily: "Inter_700Bold", fontSize: 12, color: Colors.white, letterSpacing: 0.5 },
   cardContent: { flex: 1, padding: 14 },
   cardCode: { fontFamily: "Inter_700Bold", fontSize: 12, letterSpacing: 0.5, marginBottom: 2 },

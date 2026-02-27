@@ -4,6 +4,7 @@ import { db } from "./db";
 import {
   users,
   students,
+  sections,
   grades,
   scheduleItems,
   announcements,
@@ -12,6 +13,8 @@ import {
   type InsertUser,
   type Student,
   type InsertStudent,
+  type Section,
+  type InsertSection,
   type Grade,
   type InsertGrade,
   type ScheduleItem,
@@ -26,7 +29,9 @@ import {
 export interface IStorage {
   // Admin users
   getAdminByUsername(username: string): Promise<User | undefined>;
+  getAdminById(id: string): Promise<User | undefined>;
   upsertAdmin(data: { username: string; password: string; firstName: string; lastName: string }): Promise<User>;
+  updateAdmin(id: string, data: Partial<User>): Promise<User | undefined>;
 
   // Students
   getAllStudents(): Promise<Student[]>;
@@ -35,6 +40,13 @@ export interface IStorage {
   createStudent(data: InsertStudent): Promise<Student>;
   updateStudent(id: string, data: Partial<InsertStudent>): Promise<Student | undefined>;
   deleteStudent(id: string): Promise<boolean>;
+
+  // Sections
+  getAllSections(): Promise<Section[]>;
+  getSectionById(id: string): Promise<Section | undefined>;
+  createSection(data: InsertSection): Promise<Section>;
+  updateSection(id: string, data: Partial<InsertSection>): Promise<Section | undefined>;
+  deleteSection(id: string): Promise<boolean>;
 
   // Grades
   getAllGrades(studentId?: string): Promise<Grade[]>;
@@ -84,6 +96,16 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
+  async getAdminById(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async updateAdmin(id: string, data: Partial<User>): Promise<User | undefined> {
+    const [updated] = await db.update(users).set(data).where(eq(users.id, id)).returning();
+    return updated;
+  }
+
   // ── Students ─────────────────────────────────────────────────────────────────
 
   async getAllStudents(): Promise<Student[]> {
@@ -115,6 +137,37 @@ export class DatabaseStorage implements IStorage {
 
   async deleteStudent(id: string): Promise<boolean> {
     const result = await db.delete(students).where(eq(students.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // ── Sections ─────────────────────────────────────────────────────────────────
+
+  async getAllSections(): Promise<Section[]> {
+    return db.select().from(sections);
+  }
+
+  async getSectionById(id: string): Promise<Section | undefined> {
+    const [section] = await db.select().from(sections).where(eq(sections.id, id));
+    return section;
+  }
+
+  async createSection(data: InsertSection): Promise<Section> {
+    const [section] = await db.insert(sections).values({
+      id: randomUUID(),
+      ...data,
+    }).returning();
+    return section;
+  }
+
+  async updateSection(id: string, data: Partial<InsertSection>): Promise<Section | undefined> {
+    const [updated] = await db.update(sections).set(data).where(eq(sections.id, id)).returning();
+    return updated;
+  }
+
+  async deleteSection(id: string): Promise<boolean> {
+    // Unassign students from this section first
+    await db.update(students).set({ sectionId: null }).where(eq(students.sectionId, id));
+    const result = await db.delete(sections).where(eq(sections.id, id)).returning();
     return result.length > 0;
   }
 

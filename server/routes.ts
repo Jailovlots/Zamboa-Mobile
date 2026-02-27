@@ -3,6 +3,7 @@ import { createServer, type Server } from "node:http";
 import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
 import { storage } from "./storage";
+import { type User } from "../shared/schema";
 
 const SALT_ROUNDS = 10;
 const TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -154,6 +155,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       firstName: body.firstName,
       lastName: body.lastName,
       middleName: body.middleName || "",
+      suffix: body.suffix || "",
       course: body.course,
       yearLevel: body.yearLevel || "1st Year",
       email: body.email || "",
@@ -162,6 +164,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       dateOfBirth: body.dateOfBirth || "",
       gender: body.gender || "",
       status: body.status || "Regular",
+      sectionId: body.sectionId || null,
       password: hashedPassword,
       role: "student",
     });
@@ -172,10 +175,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // PUT /api/admin/students/:id
   app.put("/api/admin/students/:id", requireAdminToken, async (req, res) => {
     const body = req.body;
-    const updated = await storage.updateStudent(String(req.params.id), {
+    const updateData: Record<string, unknown> = {
       firstName: body.firstName,
       lastName: body.lastName,
       middleName: body.middleName,
+      suffix: body.suffix,
       course: body.course,
       yearLevel: body.yearLevel,
       email: body.email,
@@ -184,7 +188,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       dateOfBirth: body.dateOfBirth,
       gender: body.gender,
       status: body.status,
-    });
+      sectionId: body.sectionId ?? null,
+    };
+    if (body.password) {
+      updateData.password = await bcrypt.hash(body.password, SALT_ROUNDS);
+    }
+    const updated = await storage.updateStudent(String(req.params.id), updateData as any);
     if (!updated) return res.status(404).json({ message: "Student not found" });
     const { password: _pw, ...studentData } = updated;
     res.json(studentData);
@@ -195,6 +204,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const deleted = await storage.deleteStudent(String(req.params.id));
     if (!deleted) return res.status(404).json({ message: "Student not found" });
     res.json({ message: "Student deleted" });
+  });
+
+  // ── Sections ──────────────────────────────────────────────────────────────────
+
+  // GET /api/admin/sections
+  app.get("/api/admin/sections", requireAdminToken, async (_req, res) => {
+    const all = await storage.getAllSections();
+    res.json(all);
+  });
+
+  // POST /api/admin/sections
+  app.post("/api/admin/sections", requireAdminToken, async (req, res) => {
+    const body = req.body;
+    if (!body.name) return res.status(400).json({ message: "Section name is required" });
+    const section = await storage.createSection({
+      name: body.name,
+      course: body.course || "",
+      yearLevel: body.yearLevel || "",
+      schoolYear: body.schoolYear || "",
+      description: body.description || "",
+    });
+    res.status(201).json(section);
+  });
+
+  // PUT /api/admin/sections/:id
+  app.put("/api/admin/sections/:id", requireAdminToken, async (req, res) => {
+    const body = req.body;
+    const updated = await storage.updateSection(String(req.params.id), {
+      name: body.name,
+      course: body.course,
+      yearLevel: body.yearLevel,
+      schoolYear: body.schoolYear,
+      description: body.description,
+    });
+    if (!updated) return res.status(404).json({ message: "Section not found" });
+    res.json(updated);
+  });
+
+  // DELETE /api/admin/sections/:id
+  app.delete("/api/admin/sections/:id", requireAdminToken, async (req, res) => {
+    const deleted = await storage.deleteSection(String(req.params.id));
+    if (!deleted) return res.status(404).json({ message: "Section not found" });
+    res.json({ message: "Section deleted" });
+  });
+
+  // POST /api/admin/sections/:id/assign — assign students { studentIds: string[] }
+  app.post("/api/admin/sections/:id/assign", requireAdminToken, async (req, res) => {
+    const sectionId = String(req.params.id);
+    const section = await storage.getSectionById(sectionId);
+    if (!section) return res.status(404).json({ message: "Section not found" });
+    const { studentIds } = req.body;
+    if (!Array.isArray(studentIds)) return res.status(400).json({ message: "studentIds must be an array" });
+    for (const sid of studentIds) {
+      await storage.updateStudent(sid, { sectionId });
+    }
+    res.json({ message: `${studentIds.length} student(s) assigned to section` });
+  });
+
+  // DELETE /api/admin/sections/:id/students/:studentId — remove student from section
+  app.delete("/api/admin/sections/:id/students/:studentId", requireAdminToken, async (req, res) => {
+    const student = await storage.getStudentById(String(req.params.studentId));
+    if (!student) return res.status(404).json({ message: "Student not found" });
+    await storage.updateStudent(String(req.params.studentId), { sectionId: null });
+    res.json({ message: "Student removed from section" });
+  });
+
+  // GET /api/admin/sections/:id/students
+  app.get("/api/admin/sections/:id/students", requireAdminToken, async (req, res) => {
+    const sectionId = String(req.params.id);
+    const all = await storage.getAllStudents();
+    const inSection = all.filter((s) => s.sectionId === sectionId);
+    const sanitized = inSection.map(({ password: _pw, ...s }) => s);
+    res.json(sanitized);
   });
 
   // ── Grades (Admin) ────────────────────────────────────────────────────────────
@@ -342,6 +424,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ message: "Announcement deleted" });
   });
 
+  // ── Admin API Routes ──────────────────────────────────────────────────────────
+
+  // PUT /api/admin/account
+  app.put("/api/admin/account", requireAdminToken, async (req, res) => {
+    const session = await storage.getSession(extractToken(req)!);
+    if (!session) return res.status(401).json({ message: "Unauthorized" });
+
+    const admin = await storage.getAdminById(session.userId);
+    if (!admin) return res.status(404).json({ message: "Admin not found" });
+
+    const { currentPassword, newUsername, newPassword } = req.body;
+    if (!currentPassword) {
+      return res.status(400).json({ message: "Current password is required" });
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, admin.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Incorrect current password" });
+    }
+
+    const updates: Partial<User> = {};
+    if (newUsername && newUsername !== admin.username) {
+      const existing = await storage.getAdminByUsername(newUsername);
+      if (existing) {
+        return res.status(400).json({ message: "Username already taken" });
+      }
+      updates.username = newUsername;
+    }
+    if (newPassword) {
+      if (newPassword.length < 8) {
+        return res.status(400).json({ message: "New password must be at least 8 characters" });
+      }
+      updates.password = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.json({ message: "No changes requested", user: admin });
+    }
+
+    const updatedAdmin = await storage.updateAdmin(admin.id, updates);
+    if (!updatedAdmin) return res.status(500).json({ message: "Failed to update account" });
+
+    const { password: _pw, ...safeAdmin } = updatedAdmin;
+    res.json({ message: "Account updated successfully", user: safeAdmin });
+  });
+
   // ── Student API Routes ────────────────────────────────────────────────────────
 
   // GET /api/student/profile
@@ -361,8 +489,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // GET /api/student/schedule
-  app.get("/api/student/schedule", requireStudentToken, async (_req, res) => {
-    res.json(await storage.getAllScheduleItems());
+  app.get("/api/student/schedule", requireStudentToken, async (req, res) => {
+    const userId = (req as Request & { studentUserId: string }).studentUserId;
+
+    // Fetch grades (enrollments)
+    const studentGrades = await storage.getAllGrades(userId);
+    const enrolledSubjects = new Set(studentGrades.map((g) => g.subjectCode));
+
+    // Fetch all schedules and filter to enrolled subjects only
+    const allSchedules = await storage.getAllScheduleItems();
+    const mySchedules = allSchedules.filter((s) => enrolledSubjects.has(s.subjectCode));
+
+    res.json(mySchedules);
   });
 
   // GET /api/student/stats
@@ -386,6 +524,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
       semesters,
       currentSemester: semesters[0] || "1st Semester 2024-2025",
     });
+  });
+
+  // GET /api/student/announcements
+  app.get("/api/student/announcements", requireStudentToken, async (req, res) => {
+    const announcements = await storage.getAllAnnouncements();
+    // Sort announcements by newest first (descending date) as strings are sortable YYYY-MM-DD
+    announcements.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    res.json(announcements);
+  });
+
+  // POST /api/student/change-password
+  app.post("/api/student/change-password", requireStudentToken, async (req, res) => {
+    const userId = (req as Request & { studentUserId: string }).studentUserId;
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: "currentPassword and newPassword are required" });
+    }
+    if (newPassword.length < 8) {
+      return res.status(400).json({ message: "New password must be at least 8 characters" });
+    }
+    const student = await storage.getStudentById(userId);
+    if (!student) return res.status(404).json({ message: "Student not found" });
+    const passwordValid = await bcrypt.compare(currentPassword, student.password);
+    if (!passwordValid) {
+      return res.status(401).json({ message: "Current password is incorrect" });
+    }
+    const hashedNewPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    await storage.updateStudent(userId, { password: hashedNewPassword });
+    res.json({ message: "Password updated successfully" });
+  });
+
+  // PUT /api/student/account — update username and/or password
+  app.put("/api/student/account", requireStudentToken, async (req, res) => {
+    const userId = (req as Request & { studentUserId: string }).studentUserId;
+    const { currentPassword, newStudentId, newPassword } = req.body;
+    if (!currentPassword) {
+      return res.status(400).json({ message: "Current password is required to update account" });
+    }
+    const student = await storage.getStudentById(userId);
+    if (!student) return res.status(404).json({ message: "Student not found" });
+    const passwordValid = await bcrypt.compare(currentPassword, student.password);
+    if (!passwordValid) {
+      return res.status(401).json({ message: "Current password is incorrect" });
+    }
+    const updateFields: Record<string, string> = {};
+    if (newStudentId && newStudentId !== student.studentId) {
+      const conflict = await storage.getStudentByStudentId(newStudentId);
+      if (conflict) return res.status(409).json({ message: "That Student ID is already in use" });
+      updateFields.studentId = newStudentId;
+    }
+    if (newPassword) {
+      if (newPassword.length < 8) return res.status(400).json({ message: "New password must be at least 8 characters" });
+      updateFields.password = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    }
+    if (Object.keys(updateFields).length === 0) {
+      return res.status(400).json({ message: "No changes provided" });
+    }
+    const updated = await storage.updateStudent(userId, updateFields as any);
+    if (!updated) return res.status(500).json({ message: "Update failed" });
+    const { password: _pw, ...studentData } = updated;
+    res.json({ message: "Account updated successfully", user: studentData });
   });
 
   const httpServer = createServer(app);
