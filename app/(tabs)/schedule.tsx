@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useCallback } from "react";
 import {
   StyleSheet,
   Text,
@@ -7,13 +7,17 @@ import {
   Pressable,
   Platform,
   FlatList,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { useQuery } from "@tanstack/react-query";
 import Colors from "@/constants/colors";
-import { DAYS, getScheduleByDay, type ScheduleItem } from "@/lib/mock-data";
+import { studentScheduleApi, type ScheduleRecord } from "@/lib/api";
+
+const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
 const dayAbbreviations: Record<string, string> = {
   Monday: "Mon",
@@ -31,7 +35,7 @@ const dayColors: Record<string, string> = {
   Friday: "#DC2626",
 };
 
-function ScheduleCard({ item, index }: { item: ScheduleItem; index: number }) {
+function ScheduleCard({ item, index }: { item: ScheduleRecord; index: number }) {
   return (
     <Animated.View entering={FadeInDown.delay(index * 80).duration(400)}>
       <View style={styles.scheduleCard}>
@@ -67,8 +71,19 @@ export default function ScheduleScreen() {
   const insets = useSafeAreaInsets();
   const [selectedDay, setSelectedDay] = useState(DAYS[0]);
 
-  const schedule = getScheduleByDay(selectedDay);
   const webTopInset = Platform.OS === "web" ? 67 : 0;
+
+  const { data: allItems = [], isLoading, isError, refetch } = useQuery({
+    queryKey: ["student-schedule"],
+    queryFn: studentScheduleApi.list,
+  });
+
+  const schedule = allItems.filter((item) => item.day === selectedDay);
+
+  const getCountForDay = useCallback(
+    (day: string) => allItems.filter((item) => item.day === day).length,
+    [allItems]
+  );
 
   return (
     <View style={styles.container}>
@@ -98,21 +113,11 @@ export default function ScheduleScreen() {
                   setSelectedDay(day);
                 }}
               >
-                <Text
-                  style={[
-                    styles.dayAbbrev,
-                    isSelected && styles.dayAbbrevSelected,
-                  ]}
-                >
+                <Text style={[styles.dayAbbrev, isSelected && styles.dayAbbrevSelected]}>
                   {dayAbbreviations[day]}
                 </Text>
-                <Text
-                  style={[
-                    styles.dayCount,
-                    isSelected && styles.dayCountSelected,
-                  ]}
-                >
-                  {getScheduleByDay(day).length}
+                <Text style={[styles.dayCount, isSelected && styles.dayCountSelected]}>
+                  {isLoading ? "…" : getCountForDay(day)}
                 </Text>
               </Pressable>
             );
@@ -120,44 +125,56 @@ export default function ScheduleScreen() {
         </ScrollView>
       </View>
 
-      <FlatList
-        data={schedule}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item, index }) => <ScheduleCard item={item} index={index} />}
-        contentContainerStyle={[
-          styles.listContent,
-          { paddingBottom: 100 + (Platform.OS === "web" ? 34 : 0) },
-        ]}
-        showsVerticalScrollIndicator={false}
-        scrollEnabled={!!schedule.length}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Ionicons name="calendar-outline" size={48} color={Colors.textTertiary} />
-            <Text style={styles.emptyTitle}>No Classes</Text>
-            <Text style={styles.emptySubtitle}>
-              You have no scheduled classes on {selectedDay}
-            </Text>
-          </View>
-        }
-        ListHeaderComponent={
-          <View style={styles.dayHeader}>
-            <View style={[styles.dayHeaderDot, { backgroundColor: dayColors[selectedDay] }]} />
-            <Text style={styles.dayHeaderText}>{selectedDay}</Text>
-            <Text style={styles.dayHeaderCount}>
-              {schedule.length} {schedule.length === 1 ? "class" : "classes"}
-            </Text>
-          </View>
-        }
-      />
+      {isLoading ? (
+        <View style={styles.loadingState}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Loading schedule…</Text>
+        </View>
+      ) : isError ? (
+        <View style={styles.emptyState}>
+          <Ionicons name="cloud-offline-outline" size={48} color={Colors.textTertiary} />
+          <Text style={styles.emptyTitle}>Could Not Load Schedule</Text>
+          <Text style={styles.emptySubtitle}>Check your connection and try again</Text>
+          <Pressable style={styles.retryButton} onPress={() => refetch()}>
+            <Text style={styles.retryText}>Retry</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <FlatList
+          data={schedule}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item, index }) => <ScheduleCard item={item} index={index} />}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: 100 + (Platform.OS === "web" ? 34 : 0) },
+          ]}
+          showsVerticalScrollIndicator={false}
+          ListHeaderComponent={
+            <View style={styles.dayHeader}>
+              <View style={[styles.dayHeaderDot, { backgroundColor: dayColors[selectedDay] }]} />
+              <Text style={styles.dayHeaderText}>{selectedDay}</Text>
+              <Text style={styles.dayHeaderCount}>
+                {schedule.length} {schedule.length === 1 ? "class" : "classes"}
+              </Text>
+            </View>
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Ionicons name="calendar-outline" size={48} color={Colors.textTertiary} />
+              <Text style={styles.emptyTitle}>No Classes</Text>
+              <Text style={styles.emptySubtitle}>
+                You have no scheduled classes on {selectedDay}
+              </Text>
+            </View>
+          }
+        />
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
+  container: { flex: 1, backgroundColor: Colors.background },
   header: {
     backgroundColor: Colors.white,
     paddingHorizontal: 20,
@@ -165,27 +182,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
-  headerTitle: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 26,
-    color: Colors.text,
-  },
-  headerSubtitle: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 13,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  daySelector: {
-    backgroundColor: Colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  daySelectorContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 8,
-  },
+  headerTitle: { fontFamily: "Inter_700Bold", fontSize: 26, color: Colors.text },
+  headerSubtitle: { fontFamily: "Inter_400Regular", fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
+  daySelector: { backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  daySelectorContent: { paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
   dayButton: {
     alignItems: "center",
     paddingHorizontal: 20,
@@ -195,48 +195,17 @@ const styles = StyleSheet.create({
     minWidth: 64,
     gap: 2,
   },
-  dayAbbrev: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 14,
-    color: Colors.text,
-  },
-  dayAbbrevSelected: {
-    color: Colors.white,
-  },
-  dayCount: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 11,
-    color: Colors.textTertiary,
-  },
-  dayCountSelected: {
-    color: "rgba(255, 255, 255, 0.8)",
-  },
-  listContent: {
-    padding: 16,
-    gap: 10,
-  },
-  dayHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 6,
-  },
-  dayHeaderDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  dayHeaderText: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 16,
-    color: Colors.text,
-    flex: 1,
-  },
-  dayHeaderCount: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 13,
-    color: Colors.textSecondary,
-  },
+  dayAbbrev: { fontFamily: "Inter_600SemiBold", fontSize: 14, color: Colors.text },
+  dayAbbrevSelected: { color: Colors.white },
+  dayCount: { fontFamily: "Inter_400Regular", fontSize: 11, color: Colors.textTertiary },
+  dayCountSelected: { color: "rgba(255, 255, 255, 0.8)" },
+  loadingState: { flex: 1, justifyContent: "center", alignItems: "center", gap: 12 },
+  loadingText: { fontFamily: "Inter_400Regular", fontSize: 14, color: Colors.textSecondary },
+  listContent: { padding: 16, gap: 10 },
+  dayHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
+  dayHeaderDot: { width: 8, height: 8, borderRadius: 4 },
+  dayHeaderText: { fontFamily: "Inter_600SemiBold", fontSize: 16, color: Colors.text, flex: 1 },
+  dayHeaderCount: { fontFamily: "Inter_400Regular", fontSize: 13, color: Colors.textSecondary },
   scheduleCard: {
     backgroundColor: Colors.white,
     borderRadius: 16,
@@ -248,81 +217,21 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  timeColumn: {
-    alignItems: "center",
-    marginRight: 14,
-    paddingVertical: 2,
-  },
-  timeStart: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 12,
-    color: Colors.primary,
-  },
-  timeDivider: {
-    alignItems: "center",
-    flex: 1,
-    paddingVertical: 4,
-  },
-  timeDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: Colors.primary,
-  },
-  timeLine: {
-    width: 1.5,
-    flex: 1,
-    backgroundColor: `${Colors.primary}30`,
-  },
-  timeEnd: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 12,
-    color: Colors.primary,
-  },
-  cardContent: {
-    flex: 1,
-  },
-  cardSubjectCode: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 12,
-    color: Colors.primary,
-    letterSpacing: 0.5,
-    marginBottom: 2,
-  },
-  cardSubjectName: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 15,
-    color: Colors.text,
-    marginBottom: 10,
-  },
-  cardDetailsRow: {
-    gap: 6,
-  },
-  cardDetail: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-  },
-  cardDetailText: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 12,
-    color: Colors.textSecondary,
-  },
-  emptyState: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 60,
-    gap: 8,
-  },
-  emptyTitle: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 16,
-    color: Colors.text,
-  },
-  emptySubtitle: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 13,
-    color: Colors.textSecondary,
-    textAlign: "center",
-  },
+  timeColumn: { alignItems: "center", marginRight: 14, paddingVertical: 2 },
+  timeStart: { fontFamily: "Inter_600SemiBold", fontSize: 12, color: Colors.primary },
+  timeDivider: { alignItems: "center", flex: 1, paddingVertical: 4 },
+  timeDot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: Colors.primary },
+  timeLine: { width: 1.5, flex: 1, backgroundColor: `${Colors.primary}30` },
+  timeEnd: { fontFamily: "Inter_600SemiBold", fontSize: 12, color: Colors.primary },
+  cardContent: { flex: 1 },
+  cardSubjectCode: { fontFamily: "Inter_700Bold", fontSize: 12, color: Colors.primary, letterSpacing: 0.5, marginBottom: 2 },
+  cardSubjectName: { fontFamily: "Inter_600SemiBold", fontSize: 15, color: Colors.text, marginBottom: 10 },
+  cardDetailsRow: { gap: 6 },
+  cardDetail: { flexDirection: "row", alignItems: "center", gap: 5 },
+  cardDetailText: { fontFamily: "Inter_400Regular", fontSize: 12, color: Colors.textSecondary },
+  emptyState: { alignItems: "center", justifyContent: "center", paddingTop: 60, gap: 8 },
+  emptyTitle: { fontFamily: "Inter_600SemiBold", fontSize: 16, color: Colors.text },
+  emptySubtitle: { fontFamily: "Inter_400Regular", fontSize: 13, color: Colors.textSecondary, textAlign: "center" },
+  retryButton: { marginTop: 8, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: Colors.primary, borderRadius: 20 },
+  retryText: { fontFamily: "Inter_600SemiBold", fontSize: 14, color: Colors.white },
 });

@@ -167,11 +167,6 @@ export default function LoginScreen() {
             )}
           </Pressable>
 
-          <View style={styles.hintsContainer}>
-            <Text style={styles.helpLabel}>Demo credentials:</Text>
-            <Text style={styles.helpText}>Student: 2024-0001 / student123</Text>
-            <Text style={styles.helpText}>Admin: admin / admin123</Text>
-          </View>
         </Animated.View>
       </LinearGradient>
     </KeyboardAvoidingView>
@@ -228,7 +223,5 @@ const styles = StyleSheet.create({
   loginButtonPressed: { opacity: 0.9, transform: [{ scale: 0.98 }] },
   loginButtonDisabled: { opacity: 0.7 },
   loginButtonText: { fontFamily: "Inter_700Bold", fontSize: 16, color: Colors.white, letterSpacing: 0.5 },
-  hintsContainer: { alignItems: "center", gap: 2, marginTop: 4, paddingBottom: 4 },
-  helpLabel: { fontFamily: "Inter_600SemiBold", fontSize: 12, color: Colors.textSecondary },
-  helpText: { fontFamily: "Inter_400Regular", fontSize: 12, color: Colors.textTertiary },
 });
+

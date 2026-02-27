@@ -6,6 +6,7 @@ import {
   ScrollView,
   Pressable,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -13,7 +14,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth-context";
+import { studentStatsApi } from "@/lib/api";
 import Colors from "@/constants/colors";
 
 interface QuickAction {
@@ -86,6 +89,12 @@ function QuickActionCard({ action, index }: { action: QuickAction; index: number
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const { student, isAuthenticated, isLoading } = useAuth();
+
+  const { data: stats, isLoading: statsLoading } = useQuery({
+    queryKey: ["student-stats"],
+    queryFn: studentStatsApi.get,
+    enabled: isAuthenticated,
+  });
 
   useEffect(() => {
     if (!isAuthenticated && !isLoading) {
@@ -174,18 +183,32 @@ export default function DashboardScreen() {
             <Ionicons name="calendar-outline" size={20} color={Colors.primary} />
             <Text style={styles.semesterTitle}>Current Semester</Text>
           </View>
-          <Text style={styles.semesterValue}>1st Semester, AY 2024-2025</Text>
+          <Text style={styles.semesterValue}>
+            {stats?.currentSemester ?? "—"}
+          </Text>
           <View style={styles.semesterStats}>
             <View style={styles.semesterStatItem}>
-              <Text style={styles.statNumber}>6</Text>
+              {statsLoading ? (
+                <ActivityIndicator size="small" color={Colors.primary} />
+              ) : (
+                <Text style={styles.statNumber}>{stats?.totalSubjects ?? "—"}</Text>
+              )}
               <Text style={styles.statLabel}>Subjects</Text>
             </View>
             <View style={styles.semesterStatItem}>
-              <Text style={styles.statNumber}>17</Text>
+              {statsLoading ? (
+                <ActivityIndicator size="small" color={Colors.primary} />
+              ) : (
+                <Text style={styles.statNumber}>{stats?.totalUnits ?? "—"}</Text>
+              )}
               <Text style={styles.statLabel}>Units</Text>
             </View>
             <View style={styles.semesterStatItem}>
-              <Text style={styles.statNumber}>1.54</Text>
+              {statsLoading ? (
+                <ActivityIndicator size="small" color={Colors.primary} />
+              ) : (
+                <Text style={styles.statNumber}>{stats?.gwa.toFixed(2) ?? "—"}</Text>
+              )}
               <Text style={styles.statLabel}>GWA</Text>
             </View>
           </View>

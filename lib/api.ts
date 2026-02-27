@@ -68,6 +68,15 @@ export async function loginApi(username: string, password: string): Promise<Logi
   return res.json();
 }
 
+export async function logoutApi(): Promise<void> {
+  const token = await getToken();
+  if (!token) return;
+  await fetch(`${BASE_URL}/api/auth/logout`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  }).catch(() => { /* ignore network errors on logout */ });
+}
+
 // ─── Admin — Students ─────────────────────────────────────────────────────────
 
 export interface StudentRecord {
@@ -172,4 +181,36 @@ export interface AdminStats {
 
 export const adminStatsApi = {
   get: () => api.get<AdminStats>("/api/admin/stats"),
+};
+
+// ─── Student — Grades ─────────────────────────────────────────────────────────
+
+export const studentGradesApi = {
+  list: () => api.get<GradeRecord[]>("/api/student/grades"),
+};
+
+// ─── Student — Schedule ───────────────────────────────────────────────────────
+
+export const studentScheduleApi = {
+  list: () => api.get<ScheduleRecord[]>("/api/student/schedule"),
+};
+
+// ─── Student — Stats ──────────────────────────────────────────────────────────
+
+export interface StudentStats {
+  totalSubjects: number;
+  totalUnits: number;
+  gwa: number;
+  semesters: string[];
+  currentSemester: string;
+}
+
+export const studentStatsApi = {
+  get: () => api.get<StudentStats>("/api/student/stats"),
+};
+
+// ─── Student — Profile ────────────────────────────────────────────────────────
+
+export const studentProfileApi = {
+  get: () => api.get<StudentRecord>("/api/student/profile"),
 };

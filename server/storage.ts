@@ -1,38 +1,221 @@
-import { type User, type InsertUser } from "@shared/schema";
+import { eq, lt } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import { db } from "./db";
+import {
+  users,
+  students,
+  grades,
+  scheduleItems,
+  announcements,
+  sessions,
+  type User,
+  type InsertUser,
+  type Student,
+  type InsertStudent,
+  type Grade,
+  type InsertGrade,
+  type ScheduleItem,
+  type InsertScheduleItem,
+  type Announcement,
+  type InsertAnnouncement,
+  type Session,
+} from "../shared/schema";
 
-// modify the interface with any CRUD methods
-// you might need
+// ─── Interface ────────────────────────────────────────────────────────────────
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  // Admin users
+  getAdminByUsername(username: string): Promise<User | undefined>;
+  upsertAdmin(data: { username: string; password: string; firstName: string; lastName: string }): Promise<User>;
+
+  // Students
+  getAllStudents(): Promise<Student[]>;
+  getStudentById(id: string): Promise<Student | undefined>;
+  getStudentByStudentId(studentId: string): Promise<Student | undefined>;
+  createStudent(data: InsertStudent): Promise<Student>;
+  updateStudent(id: string, data: Partial<InsertStudent>): Promise<Student | undefined>;
+  deleteStudent(id: string): Promise<boolean>;
+
+  // Grades
+  getAllGrades(studentId?: string): Promise<Grade[]>;
+  getGradeById(id: string): Promise<Grade | undefined>;
+  createGrade(data: InsertGrade): Promise<Grade>;
+  updateGrade(id: string, data: Partial<InsertGrade>): Promise<Grade | undefined>;
+  deleteGrade(id: string): Promise<boolean>;
+
+  // Schedule
+  getAllScheduleItems(): Promise<ScheduleItem[]>;
+  createScheduleItem(data: InsertScheduleItem): Promise<ScheduleItem>;
+  updateScheduleItem(id: string, data: Partial<InsertScheduleItem>): Promise<ScheduleItem | undefined>;
+  deleteScheduleItem(id: string): Promise<boolean>;
+
+  // Announcements
+  getAllAnnouncements(): Promise<Announcement[]>;
+  createAnnouncement(data: InsertAnnouncement): Promise<Announcement>;
+  updateAnnouncement(id: string, data: Partial<InsertAnnouncement>): Promise<Announcement | undefined>;
+  deleteAnnouncement(id: string): Promise<boolean>;
+
+  // Sessions
+  createSession(token: string, userId: string, role: string, expiresAt: number): Promise<void>;
+  getSession(token: string): Promise<Session | undefined>;
+  deleteSession(token: string): Promise<void>;
+  deleteExpiredSessions(): Promise<void>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
+// ─── DatabaseStorage ──────────────────────────────────────────────────────────
 
-  constructor() {
-    this.users = new Map();
-  }
+export class DatabaseStorage implements IStorage {
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
-  }
+  // ── Admin Users ─────────────────────────────────────────────────────────────
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
+  async getAdminByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
     return user;
   }
+
+  async upsertAdmin(data: { username: string; password: string; firstName: string; lastName: string }): Promise<User> {
+    const existing = await this.getAdminByUsername(data.username);
+    if (existing) return existing;
+    const [created] = await db.insert(users).values({
+      id: randomUUID(),
+      ...data,
+      role: "admin",
+    }).returning();
+    return created;
+  }
+
+  // ── Students ─────────────────────────────────────────────────────────────────
+
+  async getAllStudents(): Promise<Student[]> {
+    return db.select().from(students);
+  }
+
+  async getStudentById(id: string): Promise<Student | undefined> {
+    const [student] = await db.select().from(students).where(eq(students.id, id));
+    return student;
+  }
+
+  async getStudentByStudentId(studentId: string): Promise<Student | undefined> {
+    const [student] = await db.select().from(students).where(eq(students.studentId, studentId));
+    return student;
+  }
+
+  async createStudent(data: InsertStudent): Promise<Student> {
+    const [student] = await db.insert(students).values({
+      id: randomUUID(),
+      ...data,
+    }).returning();
+    return student;
+  }
+
+  async updateStudent(id: string, data: Partial<InsertStudent>): Promise<Student | undefined> {
+    const [updated] = await db.update(students).set(data).where(eq(students.id, id)).returning();
+    return updated;
+  }
+
+  async deleteStudent(id: string): Promise<boolean> {
+    const result = await db.delete(students).where(eq(students.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // ── Grades ───────────────────────────────────────────────────────────────────
+
+  async getAllGrades(studentId?: string): Promise<Grade[]> {
+    if (studentId) {
+      return db.select().from(grades).where(eq(grades.studentId, studentId));
+    }
+    return db.select().from(grades);
+  }
+
+  async getGradeById(id: string): Promise<Grade | undefined> {
+    const [grade] = await db.select().from(grades).where(eq(grades.id, id));
+    return grade;
+  }
+
+  async createGrade(data: InsertGrade): Promise<Grade> {
+    const [grade] = await db.insert(grades).values({
+      id: randomUUID(),
+      ...data,
+    }).returning();
+    return grade;
+  }
+
+  async updateGrade(id: string, data: Partial<InsertGrade>): Promise<Grade | undefined> {
+    const [updated] = await db.update(grades).set(data).where(eq(grades.id, id)).returning();
+    return updated;
+  }
+
+  async deleteGrade(id: string): Promise<boolean> {
+    const result = await db.delete(grades).where(eq(grades.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // ── Schedule ─────────────────────────────────────────────────────────────────
+
+  async getAllScheduleItems(): Promise<ScheduleItem[]> {
+    return db.select().from(scheduleItems);
+  }
+
+  async createScheduleItem(data: InsertScheduleItem): Promise<ScheduleItem> {
+    const [item] = await db.insert(scheduleItems).values({
+      id: randomUUID(),
+      ...data,
+    }).returning();
+    return item;
+  }
+
+  async updateScheduleItem(id: string, data: Partial<InsertScheduleItem>): Promise<ScheduleItem | undefined> {
+    const [updated] = await db.update(scheduleItems).set(data).where(eq(scheduleItems.id, id)).returning();
+    return updated;
+  }
+
+  async deleteScheduleItem(id: string): Promise<boolean> {
+    const result = await db.delete(scheduleItems).where(eq(scheduleItems.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // ── Announcements ─────────────────────────────────────────────────────────────
+
+  async getAllAnnouncements(): Promise<Announcement[]> {
+    return db.select().from(announcements);
+  }
+
+  async createAnnouncement(data: InsertAnnouncement): Promise<Announcement> {
+    const [announcement] = await db.insert(announcements).values({
+      id: randomUUID(),
+      ...data,
+    }).returning();
+    return announcement;
+  }
+
+  async updateAnnouncement(id: string, data: Partial<InsertAnnouncement>): Promise<Announcement | undefined> {
+    const [updated] = await db.update(announcements).set(data).where(eq(announcements.id, id)).returning();
+    return updated;
+  }
+
+  async deleteAnnouncement(id: string): Promise<boolean> {
+    const result = await db.delete(announcements).where(eq(announcements.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // ── Sessions ──────────────────────────────────────────────────────────────────
+
+  async createSession(token: string, userId: string, role: string, expiresAt: number): Promise<void> {
+    await db.insert(sessions).values({ token, userId, role, expiresAt });
+  }
+
+  async getSession(token: string): Promise<Session | undefined> {
+    const [session] = await db.select().from(sessions).where(eq(sessions.token, token));
+    return session;
+  }
+
+  async deleteSession(token: string): Promise<void> {
+    await db.delete(sessions).where(eq(sessions.token, token));
+  }
+
+  async deleteExpiredSessions(): Promise<void> {
+    await db.delete(sessions).where(lt(sessions.expiresAt, Date.now()));
+  }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();

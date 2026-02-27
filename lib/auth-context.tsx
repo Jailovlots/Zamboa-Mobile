@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useMemo, useCallback, ReactNode, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { loginApi } from "@/lib/api";
+import { loginApi, logoutApi } from "@/lib/api";
 
 export interface Student {
   id: string;
@@ -70,14 +70,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await AsyncStorage.setItem(TOKEN_KEY, res.token);
       await AsyncStorage.setItem(ROLE_KEY, res.role);
       await AsyncStorage.setItem(USER_KEY, JSON.stringify(res.user));
-      setUser(res.user as AuthUser);
+      const user = res.user as unknown as AuthUser;
+      setUser(user);
       return { success: true, role: res.role };
-    } catch (err: any) {
-      return { success: false, error: err?.message || "Login failed" };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Login failed";
+      return { success: false, error: message };
     }
   }, []);
 
   const logout = useCallback(async () => {
+    // Invalidate token on server first
+    await logoutApi();
+    // Then clear local storage
     await AsyncStorage.multiRemove([USER_KEY, TOKEN_KEY, ROLE_KEY]);
     setUser(null);
   }, []);
