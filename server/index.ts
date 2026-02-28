@@ -5,7 +5,7 @@ import { registerRoutes } from "./routes";
 import * as fs from "fs";
 import * as path from "path";
 
-const app = express();
+export const app = express();
 const log = console.log;
 
 declare module "http" {
@@ -226,7 +226,7 @@ function setupErrorHandler(app: express.Application) {
   });
 }
 
-(async () => {
+export async function setupApp() {
   setupCors(app);
   setupBodyParsing(app);
   setupRequestLogging(app);
@@ -236,9 +236,14 @@ function setupErrorHandler(app: express.Application) {
   const server = await registerRoutes(app);
 
   setupErrorHandler(app);
+  return { app, server };
+}
 
-  const port = parseInt(process.env.PORT || "5000", 10);
-  server.listen(port, "0.0.0.0", () => {
-    log(`express server serving on port ${port}`);
+if (!process.env.VERCEL) {
+  setupApp().then(({ server }) => {
+    const port = parseInt(process.env.PORT || "5000", 10);
+    server.listen(port, "0.0.0.0", () => {
+      log(`express server serving on port ${port}`);
+    });
   });
-})();
+}

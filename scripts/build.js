@@ -52,10 +52,18 @@ function getDeploymentDomain() {
     return stripProtocol(process.env.EXPO_PUBLIC_DOMAIN);
   }
 
-  console.error(
-    "ERROR: No deployment domain found. Set REPLIT_INTERNAL_APP_DOMAIN, REPLIT_DEV_DOMAIN, or EXPO_PUBLIC_DOMAIN",
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return stripProtocol(process.env.VERCEL_PROJECT_PRODUCTION_URL);
+  }
+
+  if (process.env.VERCEL_URL) {
+    return stripProtocol(process.env.VERCEL_URL);
+  }
+
+  console.warn(
+    "WARNING: No deployment domain found. Falling back to localhost:5000. Set EXPO_PUBLIC_DOMAIN or VERCEL_URL in production.",
   );
-  process.exit(1);
+  return "localhost:5000";
 }
 
 function prepareDirectories(timestamp) {
@@ -82,13 +90,16 @@ function prepareDirectories(timestamp) {
 function clearMetroCache() {
   console.log("Clearing Metro cache...");
 
-  const cacheDirs = [
-    ...fs.globSync(".metro-cache"),
-    ...fs.globSync("node_modules/.cache/metro"),
-  ];
+  const cacheDirs = [".metro-cache", "node_modules/.cache/metro"];
 
   for (const dir of cacheDirs) {
-    fs.rmSync(dir, { recursive: true, force: true });
+    if (fs.existsSync(dir)) {
+      try {
+        fs.rmSync(dir, { recursive: true, force: true });
+      } catch (e) {
+        console.warn(`Warning: Could not clear cache dir ${dir}:`, e.message);
+      }
+    }
   }
 
   console.log("Cache cleared");
@@ -121,6 +132,7 @@ async function startMetro(expoPublicDomain) {
   metroProcess = spawn("npm", ["run", "expo:start:static:build"], {
     stdio: ["ignore", "pipe", "pipe"],
     detached: false,
+    shell: true,
     env,
   });
 
@@ -153,8 +165,8 @@ async function startMetro(expoPublicDomain) {
 
 async function downloadFile(url, outputPath) {
   const controller = new AbortController();
-  const fiveMinMS = 5 * 60 * 1_000;
-  const timeoutId = setTimeout(() => controller.abort(), fiveMinMS);
+  const fifteenMinMS = 15 * 60 * 1_000;
+  const timeoutId = setTimeout(() => controller.abort(), fifteenMinMS);
 
   try {
     console.log(`Downloading: ${url}`);
@@ -179,7 +191,7 @@ async function downloadFile(url, outputPath) {
     }
 
     if (error.name === "AbortError") {
-      throw new Error(`Download timeout after 5m: ${url}`);
+      throw new Error(`Download timeout after 15m: ${url}`);
     }
     throw error;
   } finally {
@@ -213,7 +225,7 @@ async function downloadBundle(platform, timestamp) {
 
 async function downloadManifest(platform) {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 300_000);
+  const timeoutId = setTimeout(() => controller.abort(), 900_000); // 15 mins
 
   try {
     console.log(`Fetching ${platform} manifest...`);
@@ -232,7 +244,7 @@ async function downloadManifest(platform) {
   } catch (error) {
     if (error.name === "AbortError") {
       throw new Error(
-        `Manifest download timeout after 5m for platform: ${platform}`,
+        `Manifest download timeout after 15m for platform: ${platform}`,
       );
     }
     throw error;
@@ -510,14 +522,14 @@ async function main() {
 
   await startMetro(domain);
 
-  const downloadTimeout = 300000;
+  const downloadTimeout = 900_000; // 15 mins
   const downloadPromise = downloadBundlesAndManifests(timestamp);
   const timeoutPromise = new Promise((_, reject) => {
     setTimeout(() => {
       reject(
         new Error(
-          `Overall download timeout after ${downloadTimeout / 1000} seconds. ` +
-            "Metro may be struggling to generate bundles. Check Metro logs above.",
+          `Overall download timeout after ${downloadTimeout / 60000} minutes. ` +
+          "Metro may be struggling to generate bundles. Check Metro logs above.",
         ),
       );
     }, downloadTimeout);
