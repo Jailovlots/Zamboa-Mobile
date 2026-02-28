@@ -4,9 +4,8 @@ const getBaseUrl = () => {
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
   if (domain) return `https://${domain}`;
 
-  // Use the local IP address for physical devices
-  // This might need to be updated if the local IP changes
-  return "http://10.0.0.205:5000";
+  // Default to the production Render deployment
+  return "https://zamboa-mobile.onrender.com";
 };
 
 export const BASE_URL = getBaseUrl();

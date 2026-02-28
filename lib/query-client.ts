@@ -10,7 +10,7 @@ export function getApiUrl(): string {
   if (host) {
     return `https://${host}`;
   }
-  return "http://localhost:5000";
+  return "https://zamboa-mobile.onrender.com";
 }
 
 async function throwIfResNotOk(res: Response) {
