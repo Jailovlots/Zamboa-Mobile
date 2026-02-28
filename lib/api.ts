@@ -3,7 +3,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 const getBaseUrl = () => {
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
   if (domain) return `https://${domain}`;
-  return "http://localhost:5000";
+
+  // Use the local IP address for physical devices
+  // This might need to be updated if the local IP changes
+  return "http://10.0.0.205:5000";
 };
 
 export const BASE_URL = getBaseUrl();
