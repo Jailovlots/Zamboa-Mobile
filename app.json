@@ -23,11 +23,11 @@
         "backgroundColor": "#1A3A6B",
         "foregroundImage": "./assets/images/sec.png",
         "backgroundImage": "./assets/images/sec.png",
-        "monochromeImage": "./assets/images/sec-back.png"
+        "monochromeImage": "./assets/images/sec.png"
       }
     },
     "web": {
-      "favicon": "./assets/images/sec-back.png"
+      "favicon": "./assets/images/sec.png"
     },
     "plugins": [
       [
