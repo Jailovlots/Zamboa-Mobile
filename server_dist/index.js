@@ -125,8 +125,15 @@ if (!process.env.DATABASE_URL) {
     "DATABASE_URL is not set. Please create a .env file with your PostgreSQL connection string.\nExample: DATABASE_URL=postgresql://user:password@localhost:5432/zamboa"
   );
 }
+var dbUrl = process.env.DATABASE_URL;
+var isLocalhost = dbUrl.includes("localhost") || dbUrl.includes("127.0.0.1");
+var requiresSsl = dbUrl.includes("ssl=require") || dbUrl.includes("render.com");
 var pool = new Pool({
-  connectionString: process.env.DATABASE_URL
+  connectionString: dbUrl,
+  ...requiresSsl ? { ssl: { rejectUnauthorized: false } } : isLocalhost ? {} : { ssl: { rejectUnauthorized: false } }
+});
+pool.on("error", (err) => {
+  console.error("[db] Unexpected pool error:", err.message);
 });
 var db = drizzle(pool, { schema: schema_exports });
 
@@ -769,8 +776,8 @@ function setupCors(app2) {
       });
     }
     const origin = req.header("origin");
-    const isLocalhost = origin?.startsWith("http://localhost:") || origin?.startsWith("http://127.0.0.1:");
-    if (origin && (origins.has(origin) || isLocalhost)) {
+    const isLocalhost2 = origin?.startsWith("http://localhost:") || origin?.startsWith("http://127.0.0.1:");
+    if (origin && (origins.has(origin) || isLocalhost2)) {
       res.header("Access-Control-Allow-Origin", origin);
       res.header(
         "Access-Control-Allow-Methods",

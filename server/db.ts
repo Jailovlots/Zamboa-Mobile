@@ -9,8 +9,26 @@ if (!process.env.DATABASE_URL) {
     );
 }
 
+// SSL detection: honour ?ssl=require in the URL, or fall back to smart defaults.
+const dbUrl = process.env.DATABASE_URL;
+const isLocalhost =
+    dbUrl.includes("localhost") ||
+    dbUrl.includes("127.0.0.1");
+
+// When the URL contains ssl=require (Render internal/external URLs), enable SSL.
+const requiresSsl = dbUrl.includes("ssl=require") || dbUrl.includes("render.com");
+
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: dbUrl,
+    ...(requiresSsl
+        ? { ssl: { rejectUnauthorized: false } }
+        : isLocalhost
+        ? {}
+        : { ssl: { rejectUnauthorized: false } }),
+});
+
+pool.on("error", (err) => {
+    console.error("[db] Unexpected pool error:", err.message);
 });
 
 export const db = drizzle(pool, { schema });

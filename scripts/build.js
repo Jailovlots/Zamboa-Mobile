@@ -52,6 +52,11 @@ function getDeploymentDomain() {
     return stripProtocol(process.env.EXPO_PUBLIC_DOMAIN);
   }
 
+  // Render provides the full service URL as RENDER_EXTERNAL_URL
+  if (process.env.RENDER_EXTERNAL_URL) {
+    return stripProtocol(process.env.RENDER_EXTERNAL_URL);
+  }
+
   if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
     return stripProtocol(process.env.VERCEL_PROJECT_PRODUCTION_URL);
   }
