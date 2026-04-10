@@ -15,8 +15,12 @@ const isLocalhost =
     dbUrl.includes("localhost") ||
     dbUrl.includes("127.0.0.1");
 
-// When the URL contains ssl=require (Render internal/external URLs), enable SSL.
-const requiresSsl = dbUrl.includes("ssl=require") || dbUrl.includes("render.com");
+// When the URL requires SSL (Render, Neon, or explicit ssl=require), enable SSL.
+const requiresSsl =
+    dbUrl.includes("ssl=require") ||
+    dbUrl.includes("sslmode=require") ||
+    dbUrl.includes("render.com") ||
+    dbUrl.includes("neon.tech");
 
 const pool = new Pool({
     connectionString: dbUrl,

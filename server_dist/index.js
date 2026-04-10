@@ -127,7 +127,7 @@ if (!process.env.DATABASE_URL) {
 }
 var dbUrl = process.env.DATABASE_URL;
 var isLocalhost = dbUrl.includes("localhost") || dbUrl.includes("127.0.0.1");
-var requiresSsl = dbUrl.includes("ssl=require") || dbUrl.includes("render.com");
+var requiresSsl = dbUrl.includes("ssl=require") || dbUrl.includes("sslmode=require") || dbUrl.includes("render.com") || dbUrl.includes("neon.tech");
 var pool = new Pool({
   connectionString: dbUrl,
   ...requiresSsl ? { ssl: { rejectUnauthorized: false } } : isLocalhost ? {} : { ssl: { rejectUnauthorized: false } }
