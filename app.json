@@ -4,7 +4,7 @@
     "slug": "zdspgc-portal",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/sec-back.png",
     "scheme": "zdspgc",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -20,14 +20,14 @@
     "android": {
       "package": "com.zdspgc.portal",
       "adaptiveIcon": {
-        "backgroundColor": "#1A3A6B",
-        "foregroundImage": "./assets/images/sec.png",
-        "backgroundImage": "./assets/images/sec.png",
-        "monochromeImage": "./assets/images/sec.png"
+        "backgroundColor": "#FFFFFF",
+        "foregroundImage": "./assets/images/sec-back.png",
+        "backgroundImage": "./assets/images/sec-back.png",
+        "monochromeImage": "./assets/images/sec-back.png"
       }
     },
     "web": {
-      "favicon": "./assets/images/sec.png"
+      "favicon": "./assets/images/sec-back.png"
     },
     "plugins": [
       [
